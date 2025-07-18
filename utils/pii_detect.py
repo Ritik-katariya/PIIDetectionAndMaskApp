@@ -1,32 +1,47 @@
 import re
 
-# Define regex for Aadhaar, email, phone etc.
+# Enhanced regex patterns for Aadhaar and other PII
 PII_REGEX = {
-    # Matches XXXX XXXX XXXX format
     "aadhaar": r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b",
-
-    # Matches standard Indian mobile numbers starting with 6-9
-    "phone": r"\b[6-9]\d{9}\b",
-
-    # Matches common DOB formats: DD/MM/YYYY or DD-MM-YYYY
-    "dob": r"\b(?:DOB\s*[:\-]?\s*)?(\d{2}[/\-]\d{2}[/\-]\d{4})\b",
-
-    # Matches email addresses
-    "email": r"\b[\w\.-]+@[\w\.-]+\.\w+\b",
-
-    # Matches lines starting with Name: or NAME or Name of the holder etc.
-    "name": r"(?i)\b(name\s*(of\s*(the\s*)?(holder)?)?\s*[:\-]?\s*)([A-Z][A-Z\s]+)",
-
-    # Matches Address: or anything starting with address (case-insensitive)
-    "address": r"(?i)\b(address\s*[:\-]?\s*)(.+)",
+    "phone": r"\b(?:\+91[\s\-]?)?[6-9]\d{9}\b",
+    "dob": r"\b(?:DOB\s*[:\-]?\s*)?(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{4})\b",
+    "email": r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b",
+    # Name: lines with 'Name' or likely full names (2+ capitalized words, not all uppercase)
+    "name": r"(?i)\bname\b\s*[:\-]?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)|\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b",
+    # Address: lines with 'Address' or likely address patterns
+    "address": r"(?i)\baddress\b\s*[:\-]?\s*([A-Za-z0-9\s,\-\.]+)|\b([A-Za-z0-9\s,\-]{10,})\b",
 }
 
 def detect_pii(ocr_results):
+    """
+    Detect PII in OCR text lines for Aadhaar cards.
+    Returns a list of dicts: [{bbox, label, text, confidence}]
+    """
     pii_boxes = []
     for bbox, text, conf in ocr_results:
         for label, pattern in PII_REGEX.items():
-            if re.search(pattern, text):
-                pii_boxes.append(bbox)
-                break
+            # For name/address, try to avoid false positives by context
+            if label in ["name", "address"]:
+                matches = re.findall(pattern, text)
+                for match in matches:
+                    # match can be a tuple if multiple groups
+                    value = next((m for m in match if m), None)
+                    if value and len(value) > 2:
+                        pii_boxes.append({
+                            "bbox": bbox,
+                            "label": label,
+                            "text": value.strip(),
+                            "confidence": conf
+                        })
+                        break
+            else:
+                match = re.search(pattern, text)
+                if match:
+                    pii_boxes.append({
+                        "bbox": bbox,
+                        "label": label,
+                        "text": match.group(0),
+                        "confidence": conf
+                    })
+                    break
     return pii_boxes
-    
