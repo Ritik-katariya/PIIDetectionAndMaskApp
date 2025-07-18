@@ -13,12 +13,20 @@ PII_REGEX = {
 }
 
 def detect_pii(ocr_results):
-    """
-    Detect PII in OCR text lines for Aadhaar cards.
-    Returns a list of dicts: [{bbox, label, text, confidence}]
-    """
     pii_boxes = []
-    for bbox, text, conf in ocr_results:
+    address_keywords = ["address", "पता", "addr", "s/o", "c/o"]
+    for idx, (bbox, text, conf) in enumerate(ocr_results):
+        # Normalize text
+        norm_text = text.strip().lower()
+        # Address: look for keywords or long lines
+        if any(kw in norm_text for kw in address_keywords) or (len(norm_text) > 20 and ',' in norm_text):
+            pii_boxes.append({
+                "bbox": bbox,
+                "label": "address",
+                "text": text,
+                "confidence": conf
+            })
+            continue
         for label, pattern in PII_REGEX.items():
             # For name/address, try to avoid false positives by context
             if label in ["name", "address"]:
