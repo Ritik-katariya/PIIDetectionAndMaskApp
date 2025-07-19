@@ -3,3 +3,5 @@ uvicorn
 easyocr
 opencv-python
 python-multipart
+requests
+pillow

@@ -1,13 +1,26 @@
 import cv2
 import easyocr
-reader = easyocr.Reader(['en'])
+import os
+
+reader = easyocr.Reader(['en'], gpu=False, verbose=False, download_enabled=False)
 
 def preprocess_image(image_path):
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    _, thresh = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
-    return thresh
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+    
+    img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError(f"Unable to read image from path: {image_path}")
+    
+    height, width = img.shape[:2]
+    if max(height, width) > 1200:
+        img = cv2.resize(img, (width // 2, height // 2))
+    return img
 
 def extract_text_with_boxes(image_path):
-    image = preprocess_image(image_path)
-    results = reader.readtext(image)
-    return results
+    try:
+        image = preprocess_image(image_path)
+        results = reader.readtext(image)
+        return results
+    except Exception as e:
+        raise Exception(f"OCR processing failed: {str(e)}")
